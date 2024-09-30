@@ -1,34 +1,58 @@
-node {
-    def app
+pipeline {
+    agent any
 
-    stage('Clone repository') {
+    environment {
+        // Define your AWS and Docker parameters
+        AWS_REGION = 'ap-southeast-1' // e.g., us-east-1
+        ECR_REPOSITORY = 'tmt-repo' // e.g., my-app
+        IMAGE_TAG = 'latest' // or use a variable for versioning
+        AWS_ACCOUNT_ID = '896836667748' // e.g., 123456789012
+    }
+
+        stage('Clone repository') {
       
 
-        checkout scm
-    }
+            checkout scm
+        }
+       
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build the Docker image
+                    sh "docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} ."
+                }
+            }
+        }
 
-    stage('Build image') {
-  
-       app = docker.build("raj80dockerid/test")
-    }
+        stage('Login to ECR') {
+            steps {
+                script {
+                    // Login to ECR
+                    def loginCommand = sh(script: "aws ecr get-login-password --region ${AWS_REGION}", returnStdout: true).trim()
+                    sh "echo ${loginCommand} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                }
+            }
+        }
 
-    stage('Test image') {
-  
-
-        app.inside {
-            sh 'echo "Tests passed"'
+        stage('Push Docker Image to ECR') {
+            steps {
+                script {
+                    // Tag the image
+                    sh "docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
+                    
+                    // Push the image to ECR
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
+                }
+            }
         }
     }
 
-    stage('Push image') {
-        
-        docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
-            app.push("${env.BUILD_NUMBER}")
+    post {
+        success {
+            echo 'Docker image pushed to ECR successfully!'
+        }
+        failure {
+            echo 'Failed to push Docker image to ECR.'
         }
     }
-    
-    stage('Trigger ManifestUpdate') {
-                echo "triggering updatemanifestjob"
-                build job: 'updatemanifest', parameters: [string(name: 'DOCKERTAG', value: env.BUILD_NUMBER)]
-        }
 }
