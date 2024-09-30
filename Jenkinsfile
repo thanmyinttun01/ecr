@@ -9,12 +9,14 @@ pipeline {
         AWS_ACCOUNT_ID = '896836667748' // e.g., 123456789012
     }
 
+    stages {
         stage('Clone repository') {
-      
-
-            checkout scm
+            steps {
+                // Checkout the SCM repository
+                checkout scm
+            }
         }
-       
+
         stage('Build Docker Image') {
             steps {
                 script {
