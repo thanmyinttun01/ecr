@@ -2,43 +2,54 @@ pipeline {
     agent any
 
     environment {
-        AWS_REGION = 'us-east-1'
-        ECR_REPOSITORY = 'tmt/repo'
-        IMAGE_TAG = 'latest'
-        AWS_ACCOUNT_ID = '896836667748'
-        AWS_ACCESS_KEY_ID = credentials('AKIA5BT5BRFSOIBTX2BZ') // Replace with your Jenkins credential ID
-        AWS_SECRET_ACCESS_KEY = credentials('13pQb0gvgNAf3qcPN3qlWUnRwes9KYoMzyBnwy2H') // Replace with your Jenkins credential ID
+        AWS_REGION = 'ap-southeast-1' // Your AWS region
+        ECR_REPOSITORY = 'tmt-repo' // Your ECR repository name
+        IMAGE_TAG = 'latest' // Docker image tag
+        AWS_ACCOUNT_ID = '896836667748' // Your AWS account ID
+        // Use Jenkins credentials for AWS
+      
     }
 
     stages {
         stage('Clone repository') {
             steps {
-                checkout scm
+                checkout scm // Checkout the source code
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
+                    // Build the Docker image
                     sh "docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} ."
                 }
             }
         }
 
-        stage('Login to ECR Public') {
+        stage('Login to ECR') {
             steps {
                 script {
-                    def loginCommand = sh(script: "aws ecr-public get-login-password --region ${AWS_REGION}", returnStdout: true).trim()
-                    sh "echo ${loginCommand} | docker login --username AWS --password-stdin public.ecr.aws"
+                    // Login to ECR
+                    def loginCommand = sh(script: "aws ecr get-login-password --region ${AWS_REGION}", returnStdout: true).trim()
+                    sh "echo ${loginCommand} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
                 }
             }
         }
 
-        stage('Push Docker Image to ECR Public') {
+        stage('Tag Docker Image') {
             steps {
                 script {
-                    sh "docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} public.ecr.aws/${AWS_ACCOUNT_ID}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-                    sh "docker push public.ecr.aws/${AWS_ACCOUNT_ID}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+                    // Tag the image for ECR
+                    sh "docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Push Docker Image to ECR') {
+            steps {
+                script {
+                    // Push the image to ECR
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
                 }
             }
         }
@@ -46,10 +57,10 @@ pipeline {
 
     post {
         success {
-            echo 'Docker image pushed to ECR Public successfully!'
+            echo 'Docker image pushed to ECR successfully!'
         }
         failure {
-            echo 'Failed to push Docker image to ECR Public.'
+            echo 'Failed to push Docker image to ECR.'
         }
     }
 }
